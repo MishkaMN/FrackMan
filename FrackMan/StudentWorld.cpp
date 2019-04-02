@@ -151,16 +151,20 @@ void StudentWorld::cleanUp()
 	}
 }
 
-// Check dirt
+// Check dirt fix
+// TODO something with boundary and stuff
+// How is it actually used?
 bool StudentWorld::isDirtAt(const int& x, const int& y) const
 {
 	int xBoundary = x + 4, yBoundary = y + 4;
 	for (int c = x; c != xBoundary; c++)
 		for (int r = y; r != yBoundary; r++)
-			if (m_dirts[r][c]->isPlacable(r, c) && m_dirts[r][c] != nullptr)
+		{
+			if (m_dirts[r][c]->isPlacable(c, r) && m_dirts != nullptr)
 				return true;
+		}
 	return false;
-	/*filled*/
+	
 }
 // Deletes a square dirt at (x,y) with specified size 
 void StudentWorld::delDirtat(const int& x, const int& y, const int& size)
@@ -177,6 +181,7 @@ void StudentWorld::delDirtat(const int& x, const int& y, const int& size)
 		}
 }
 
+// Dig dirt at (x,y) according to Frackman's direction 
 void StudentWorld::getDug(const int& x, const int& y)
 {
 	int xBoundary = x + 4, yBoundary = y + 4;
@@ -185,6 +190,7 @@ void StudentWorld::getDug(const int& x, const int& y)
 	{
 	case left:
 		for (int k = y; k != yBoundary; k++)
+
 		{
 			if (m_dirts[k][x] != nullptr)
 			{
@@ -225,48 +231,47 @@ void StudentWorld::getDug(const int& x, const int& y)
 	playSound(SOUND_DIG);
 	return;
 }
+
+// Add Squirt actor at (x,y) to specified dir
 void StudentWorld::addSquirt(int x, int y, GraphObject::Direction dir)
 {
 	int ch = dir;
 	Squirt* m_squirt;
 	switch (ch)
 	{
-	case up: m_squirt = new Squirt(this, x, y + 4, dir); break;
-	case left: m_squirt = new Squirt(this, x - 4, y, dir); break;
-	case down: m_squirt = new Squirt(this, x, y - 4, dir); break;
-	case right: m_squirt = new Squirt(this, x + 4, y, dir); break;
-	default: break;
+		case up: m_squirt = new Squirt(this, x, y + 4, dir); break;
+		case left: m_squirt = new Squirt(this, x - 4, y, dir); break;
+		case down: m_squirt = new Squirt(this, x, y - 4, dir); break;
+		case right: m_squirt = new Squirt(this, x + 4, y, dir); break;
+		default: break;
 	}
 	actors.push_back(m_squirt);
+
 	if (!canActorMoveTo(m_squirt, m_squirt->getX(), m_squirt->getY()))
 		m_squirt->setDead();
-
 }
+
+// Check if there is protester at (x,y)
 bool StudentWorld::isProtesterAt(const int& x, const int& y)
 {
-	int k = 0;
-	std::vector<Actor*>::iterator i = actors.begin();
-	while (k != actors.size())
+	for (std::vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++) 
 	{
 		if ((*i)->isProtester() && (*i)->getX() == x && (*i)->getY() == y)
 			return true;
-		k++;
-		i++;
 	}
 	return false;
 }
+
+// Delete the Actor with a given ptr
 void StudentWorld::deleteActor(Actor* ptr)
 {
 	std::vector<Actor*>::iterator i = find(actors.begin(), actors.end(), ptr);
-	std::vector<Actor*>::iterator p = i;
-	p++;
-	if (p == actors.end())
-		actors.pop_back();
-	else
-		i = actors.erase(i);
+	actors.erase(i);
 	delete ptr;
 	ptr = nullptr;
 }
+
+// Check if the Actor can move to (x,y)
 bool StudentWorld::canActorMoveTo(Actor* ptr, const int& x, const int& y)
 {
 	bool answer = true;
@@ -279,31 +284,35 @@ bool StudentWorld::canActorMoveTo(Actor* ptr, const int& x, const int& y)
 	else
 	{
 		for (vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
-			if ((*i) != ptr && doesRadiusOverlap(ptr,(*i)) && (*i)->canActorPassThroughMe() == false )
+			if ((*i) != ptr && doesFrameOverlap(ptr,(*i)) && (*i)->canActorPassThroughMe() == false )
 				answer = false;
 	}
 	return answer;
 }
+
+// Deconstructor, deletes all dirt and actors
 StudentWorld::~StudentWorld()
 {
+	// delete all dirt
 	for (int r = 0; r != 60; r++)
 		for (int c = 0; c != 60; c++)
 		{
 			delete m_dirts[r][c];
 		}/*filled*/
-	int k = 0;
 
-	while (k != actors.size())
-	{
-		std::vector<Actor*>::iterator i = actors.begin();
+	// delete all actors
+	for (vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
 		deleteActor(*i);
-	}
 }
+
+// Calculate euclidean distance between (x1,y1) & (x2,y2)
 float StudentWorld::disBetween(int x1, int y1, int x2, int y2)
 {
 	return ((x1 - x2) ^ 2 + (y1 - y2) ^ 2) ^ (1 / 2);
 }
-bool StudentWorld::doesRadiusOverlap(Actor* a1, Actor* a2) const
+
+// Check if 4x4 dimensions of actors overlap
+bool StudentWorld::doesFrameOverlap(Actor* a1, Actor* a2) const
 {
 	int a1Boundary_x = a1->getX() + 4, a1Boundary_y = a1->getY() + 4;
 	int a2Boundary_x = a2->getX() + 4, a2Boundary_y = a2->getY() + 4;
@@ -316,101 +325,109 @@ bool StudentWorld::doesRadiusOverlap(Actor* a1, Actor* a2) const
 		return true;
 	else return false;
 }
+
+// Use sonar, revealling all hidden items within 12 radius
 void StudentWorld::revealAllNearby(const int& x, const int& y)
 {
 	int radius = 12;
-	vector<Actor*>::iterator i = actors.begin();
-	for (int k = 0; k != actors.size(); k++)
+	for (vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
 	{
-		if (isNearbyFrackMan((*i), radius))
-		(*i)->setVisible(true);
+		if (disBetween((*i)->getX(), (*i)->getY(), m_player->getX(), m_player->getY()) <= 12)
+			(*i)->setVisible(true);
 	}
 }
-bool StudentWorld::isNearbyFrackMan(Actor* a, const int& radius) const
-{
-	int aBoundary_x = a->getX() + radius, aBoundary_y = a->getY() + radius;
-	if (m_player->getX() >= a->getX() - radius && m_player->getX() <= aBoundary_x && 
-		m_player->getY() >= a->getY() - radius && m_player->getY() <= aBoundary_y)
-		return true;
-	else return false;
-}
+
+// Add gold to the world, timer is gold's lifespan, t=-1 before it is picked up by Frackman
 void StudentWorld::addGold(const int& x, const int& y, int timer)
 {
 	GoldNugget* g = new GoldNugget(this, x, y, timer);
 	actors.push_back(g);
 }
 
-// Check if the Boulder has a ground beneath it or not
+// Return true if there is any dirt beneath the boulder, false otherwise
 bool StudentWorld::checkBoulderGround(Actor* a) const
 {
 	int xBoundary = a->getX() + 4;
+
 	for (int k = a->getX(); k != xBoundary; k++)
 	{
 		if (m_dirts[a->getY()][k] != nullptr)
-			return false;
+			return true;
 	}
-	return true;
+	return false;
+
 }
+
+// Return true if the given actor is within specified radius from Frackman
+bool StudentWorld::isNearbyFrackMan(Actor* a, const int& radius)
+{
+	if (disBetween(a->getX(), a->getY(), m_player->getX(), m_player->getY()) <= radius)
+		return true;
+	else
+		return false;
+}
+// True if Actor is safe from any boulder, false otherwise, which makes the actor dead.
+// TODO: Optimize by creating separate vector from actors for boulder
 bool StudentWorld::isSafe(Actor* a)
 {
+	// Only HP holders can be injured by boulder
 	if (a->hasHP())
 	{
-		int k = 0;
-		while (k != actors.size())
-		{
-			std::vector<Actor*>::iterator i = actors.begin();
-			if ((*i)->isBoulder() && doesRadiusOverlap(a, *i))
+		for (std::vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
+			if ((*i)->isBoulder() && doesFrameOverlap(a, *i))
 			{
 				a->setDead();
 				return false;
 			}
-			k++;
-		}
 	}
 	return true;
 }
+
+// Return number of oils/barrels
 int StudentWorld::countOil()
 {
-	int k = 0;
-	while (k != actors.size())
-	{
-		std::vector<Actor*>::iterator i = actors.begin();
-		if ((*i)->isOil())
-			L++;
-		k++;
-	}
 	return L;
 }
+
+// True if Actor sees Frackman
 bool StudentWorld::facingTowardFrackMan(Actor* a)
 {
 	return a->getDirection() == lineOfSightToFrackMan(a);
 }
+
+// 
 GraphObject::Direction StudentWorld::lineOfSightToFrackMan(Actor* a)
 {
-	Actor* f = actors[0];
-	const int max_y = a->getY() > f->getY() ? a->getY() : f->getY();
-	const int min_y = a->getY() <= f->getY() ? a->getY() : f->getY();
-	const int max_x = a->getX() > f->getX() ? a->getX() : f->getX();
-	const int min_x = a->getX() <= f->getX() ? a->getX() : f->getX();
-	if (a->getX() == f->getX())
+	const int ax = a->getX(), ay = a->getY();
+	const int fx = m_player->getX(), fy = m_player->getY();
+
+	const int max_x = max(ax, fx);
+	const int min_x = min(ax, fx);
+	const int max_y = max(ay, fy);
+	const int min_y = min(ay, fy);
+
+	// Return no direction if line of sight is blocked
+	if (ax == fx)
 	{
-		for (int i = min_y; i != max_y; i++)
-			if (isBoulderAt(a->getX(), i) || isDirtAt(a->getX(), i))
+		for (int y = min_y; y != max_y; y++)
+			if (isBoulderAt(ax, y) || isDirtAt(ax, y))
 				return GraphObject::none;
 	}
-	else if (a->getY() == f->getY())
+	else if (ay == fy)
 	{
-		for (int i = min_x; i != max_x; i++)
-			if (isBoulderAt(i, a->getY()) || isDirtAt(i, a->getY()))
+		for (int x = min_x; x != max_x; x++)
+			if (isBoulderAt(x, ay) || isDirtAt(x, ay))
 				return GraphObject::none;
 	}
-	if (a->getY() == min_y)
+
+	// If not blocked, return direction to frackman from actor
+	if (ay == min_y)
 		return GraphObject::up;
-	else if (a->getX() == min_x)
+	else if (ax== min_x)
 		return GraphObject::right;
-	else if (a->getY() == max_y)
+	else if (ay == max_y)
 		return GraphObject::down;
-	else if (a->getX() == max_x)
+	else if (ax == max_x)
 		return GraphObject::left;
 }
 bool StudentWorld::isBoulderAt(const int& x, const int& y)
@@ -433,7 +450,7 @@ int StudentWorld::annoyAllNearbyProtesters(Actor* annoyer, int points)
 	while (k != actors.size())
 	{
 		std::vector<Actor*>::iterator i = actors.begin();
-		if ((*i)->isProtester() && doesRadiusOverlap(annoyer, *i))
+		if ((*i)->isProtester() && doesFrameOverlap(annoyer, *i))
 		{
 			(*i)->getAnnoyed(points);
 			annoyed++;

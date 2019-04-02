@@ -26,11 +26,11 @@ public:
 	void delDirtat(const int& x, const int& y, const int& size);
 	void deleteActor(Actor* ptr); // filled
 	bool canActorMoveTo(Actor* ptr, const int& x, const int& y); // filled
-	bool doesRadiusOverlap(Actor* a1, Actor* a2) const;	//filled
+	bool doesFrameOverlap(Actor* a1, Actor* a2) const;	//filled
 	float disBetween(int x1, int y1, int x2, int y2);
 	void populateCollectables(int num, char which);
 	void revealAllNearby(const int& x, const int& y);
-	bool isNearbyFrackMan(Actor* a, const int& radius) const;
+	bool isNearbyFrackMan(Actor* a, const int& radius);
 	void giveFMGold() { m_player->addGold(); G--; }
 	void giveFMWater() { m_player->addWater(); }
 	void giveFMSonar() { m_player->addSonar(); }
