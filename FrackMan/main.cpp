@@ -18,6 +18,10 @@ GameWorld* createStudentWorld(string assetDir = "");
 
 int main(int argc, char* argv[])
 {
+	// Debug: Student added following 2 lines:
+	cout << "Start!\n";
+	// Check if there is any memory leak:
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	{
 		string path = assetDirectory;
 		if (!path.empty())

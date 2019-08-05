@@ -6,6 +6,7 @@
 #include <utility>
 
 using namespace std;
+
 int randInt(int min, int max);
 // Students:  Add code to this file, Actor.cpp, StudentWorld.h, and StudentWorld.cpp
 
@@ -22,17 +23,25 @@ public:
 		: GraphObject(imageID, startX, startY, dir, size, depth), m_world(sw), m_val(1)
 	{
 		setVisible(true);
-	} /*filled*/
-	virtual ~Actor() {} /*filled*/
-	virtual void doSomething() = 0; /*filled*/
+	}
+	
+	virtual ~Actor() {} 
+	
+	virtual void doSomething() = 0; 
+	
 	StudentWorld* getWorld() const { return m_world; }
-	virtual void setDead(); // filled
+	
+	virtual void setDead(); 
+	
 	virtual bool isAlive() const { return m_val > 0; }
 	// Can move?
 	virtual bool canMove() const { return false; }
 	// can be picked up by FrackMan or Protester?
 	virtual bool canPickedbyP() const { return false; }
+	
+	// can be picked up by frackman?
 	virtual bool canPickedbyFM() const { return false; }
+	
 	// Can this actor dig through dirt?
 	virtual bool canDigThroughDirt() const { return false; }
 
@@ -43,19 +52,28 @@ public:
 	virtual bool isProtester() const { return false; }
 
 	// is boulder?
-
 	virtual bool isBoulder() const { return false; }
 
-	// Can this actor need to be picked up to finish the level?
+	// is an obstacle? dirt or boulder
+	virtual bool isObstacle() const { return false; }
 
+	// Can this actor need to be picked up to finish the level?
 	virtual bool isOil() const { return false; }
 
-	//can other actors pass through this actor?
-	virtual bool canActorPassThroughMe() const = 0; //fill
+	//	Can other actors pass through this actor? 
+	virtual bool canActorPassThroughMe() const = 0; 
 
 	// is it possible to place it in map?
 	bool isPlacable(const int& x, const int& y) const;
-	virtual bool getAnnoyed(unsigned int amt) { return false; }; //filled
+
+	// Mainly for HP Holders
+	virtual bool getAnnoyed(unsigned int amt) {return false; }; 
+
+	// Used for Protesters and Frackman
+	virtual void addGold() { return; };
+
+	// Used for Moving objects and shortest path finding alg for protesters
+	virtual void turnOrMove(const Direction& dir, const int& x, const int& y) { return; }
 
 private:
 	StudentWorld* m_world;
@@ -70,11 +88,12 @@ class Dirt : public Actor
 public: 
 	Dirt(StudentWorld *sw, int startX, int startY, int imageID = IID_DIRT, Direction dir = right, double size = 0.25, unsigned int depth = 3)
 		:Actor(sw, startX, startY, imageID, dir, size, depth)
-	{} /*filled*/
-	virtual ~Dirt() {} /*filled*/
-	virtual bool canActorPassThroughMe() const { return false; } //filled
-	virtual void doSomething() { return; }	/*filled*/
-	virtual void turnOrMove(const Direction& dir, const int& x, const int& y) { return; }
+	{} 
+	virtual ~Dirt() {}
+	virtual bool canActorPassThroughMe() const { return false; } 
+	virtual void doSomething() { return; }	
+	virtual bool isObstacle() { return true; }
+	bool isDirt() { return true; }
 
 private:
 };
@@ -87,12 +106,11 @@ private:
 class ValueHolder : public Actor
 {
 public:
-	ValueHolder(StudentWorld *sw, int startX, int startY, int imageID, Direction dir, double size, unsigned int depth); /*filled*/
-	   // can be picked up by FrackMan?
+	ValueHolder(StudentWorld *sw, int startX, int startY, int imageID, Direction dir, double size, unsigned int depth);
 	virtual bool canPickedbyFM() const { return true; }
 	virtual bool canPickedbyP() const { return false; }
 	virtual bool canActorPassThroughMe() const { return true; }
-	virtual ~ValueHolder() {}; /*filled*/
+	virtual ~ValueHolder() {}; 
 };
 
 ///////   SONAR_KIT OF VALUE_HOLDERS    //////
@@ -106,11 +124,10 @@ public:
 		if (300 - 10 * lvl > 100)
 			m_timer = 300 - 10 * lvl;
 		else m_timer = 100;
-	} /*filled*/
-	  // can be picked up by FrackMan?
+	}
 	virtual bool canPickedbyFM() const {return true;}
-	virtual ~SonarKit() {}; /*filled*/
-	virtual void doSomething(); // timer // filled
+	virtual ~SonarKit() {};
+	virtual void doSomething();
 private:
 	int m_timer;
 };
@@ -127,8 +144,7 @@ public:
 			pickableByFM = false;
 		else pickableByFM = true;
 
-	} /*filled*/
-	  // can be picked up by FrackMan?
+	}
 	virtual bool canPickedbyFM() const
 	{
 		return pickableByFM;
@@ -142,8 +158,8 @@ public:
 			pickableByFM = false;
 		else pickableByFM = true;
 	}
-	virtual ~GoldNugget() {}; /*filled*/
-	virtual void doSomething(); // timer // filled
+	virtual ~GoldNugget() {}; 
+	virtual void doSomething(); 
 private:
 	int m_timer;
 	bool pickableByFM;
@@ -159,11 +175,10 @@ public:
 		if (300 - 10 * lvl > 100)
 			m_timer = 300 - 10 * lvl;
 		else m_timer = 100;
-	} /*filled*/
-	  // can be picked up by FrackMan?
+	}
 	virtual bool canPickedbyFM() const { return true; }
-	virtual ~WaterPool() {}; /*filled*/
-	virtual void doSomething(); // timer // filled
+	virtual ~WaterPool() {}; 
+	virtual void doSomething();
 private:
 	int m_timer;
 };
@@ -177,12 +192,11 @@ public:
 		:ValueHolder(sw, startX, startY, imageID, dir, size, depth)
 	{
 		setVisible(false);
-	} /*filled*/
-	  // can be picked up by FrackMan?
+	}
 	virtual bool canPickedbyFM() const { return true; }
-	virtual ~Barrel() {}; /*filled*/
+	virtual ~Barrel() {};
 	virtual bool isOil() { return true; }
-	virtual void doSomething(); // timer // filled
+	virtual void doSomething(); 
 };
 
 ////////////////////////////////////
@@ -194,9 +208,8 @@ class MovingActor : public Actor
 public:
 	MovingActor(StudentWorld *sw, int startX, int startY, int imageID, Direction dir, double size, unsigned int depth)
 		:Actor(sw, startX, startY, imageID, dir, size, depth)
-	{} /*filled*/
-	virtual ~MovingActor() {}; /*filled*/
-	// Can move?
+	{}
+	virtual ~MovingActor() {}; 
 	virtual bool canMove() const { return true; }
 	void turnOrMove(const Direction& dir, const int& x, const int& y);
 	virtual void specialMove(const int& digX, const int& digY) = 0;
@@ -211,13 +224,13 @@ public:
 		:MovingActor(sw, startX, startY, imageID, dir, size, depth)
 	{
 		m_journey = 0;
-	} /*filled*/
-	virtual void doSomething();	//fill
-	virtual bool canActorPassThroughMe() const { return false; }	//filled
-	virtual void specialMove(const int& x, const int& y); //filled
-	int getDistanceTraveled() const { return m_journey; }// filled
-	void continueTravel() { m_journey++; } // filled
-	virtual ~Squirt() {} /*filled*/
+	}
+	virtual void doSomething();	
+	virtual bool canActorPassThroughMe() const { return false; }	
+	virtual void specialMove(const int& x, const int& y); 
+	int getDistanceTraveled() const { return m_journey; }
+	void continueTravel() { m_journey++; }
+	virtual ~Squirt() {}
 private:
 	int m_journey;
 };
@@ -231,13 +244,17 @@ public:
 		:MovingActor(sw, startX, startY, imageID, dir, size, depth), m_state(0), m_timer(0)
 	{
 		setVisible(true);
-	} /*filled*/
-	virtual ~Boulder() {} /*filled*/
-	virtual bool canActorPassThroughMe() const { return false; } //filled
-	virtual void doSomething();	//filled
+	}
+	virtual ~Boulder() {}
+	virtual bool canActorPassThroughMe() const { return false; } 
+	virtual void doSomething();
 	virtual void specialMove(const int& digX, const int& digY) { return; }
-	bool isStable() const { return m_state == 0; }
+	bool isStable() const 
+	{ 
+		return m_state != 2; //stable when 0 or 1 
+	}
 	virtual bool isBoulder() const { return true; }
+	virtual bool isObstacle() { return true; }
 private:
 	int m_state; // 0 for stable
 				 // 1 for waiting
@@ -254,20 +271,19 @@ class HPholder : public MovingActor
 public:
 	HPholder(StudentWorld *sw, int startX, int startY, int imageID, Direction dir, double size, unsigned int depth, int hp)
 		:MovingActor(sw, startX, startY, imageID, dir, size, depth), m_hp(hp)
-	{} /*filled*/
-	virtual ~HPholder() {}; /*filled*/
-	int healthPoint() const { return m_hp; }
-	virtual bool isAlive()const { return m_hp > 0; }
+	{}
+	virtual ~HPholder() {};
+	int getHP() const { return m_hp; }
+	virtual bool isAlive()const { return is_alive; }
 	virtual void setDead();
-	//pick up gold nugget
 	virtual void addGold() = 0; 
-	//annoy this actor
-	virtual bool getAnnoyed(unsigned int amt) { m_hp = m_hp - amt; return true; }; //filled
+	virtual bool getAnnoyed(unsigned int amt) { m_hp = m_hp - amt; return true; }; 
 	virtual void specialMove(const int& digX, const int& digY) = 0;
 	virtual bool hasHP() const { return true; }
 
 private:
 	 int m_hp;
+	 bool is_alive;
 };
 
 ///////   FRACK_MAN OF HP_HOLDERS    //////
@@ -276,21 +292,22 @@ class FrackMan : public HPholder
 {
 public:
 	FrackMan(StudentWorld *sw, int startX = 30, int startY = 60, int imageID = IID_PLAYER, Direction dir = right, double size = 1, unsigned int depth = 0, int hp = 10)
-		:HPholder(sw, startX, startY, imageID = IID_PLAYER, dir, size, depth, hp),
-		m_water(5), m_charge(1), m_gold(0)
-	{} /*filled*/
-	virtual ~FrackMan() {} /*filled*/
-	virtual void doSomething();	//filled
-	virtual void specialMove(const int& digX, const int& digY); //dig
-	virtual bool getAnnoyed(unsigned int amt); //filled
-	virtual void addGold() { m_gold++; };	//fillP
+		:HPholder(sw, startX, startY, imageID, dir, size, depth, hp),
+		m_water(10), m_charge(1), m_gold(10)
+	{}
+	virtual ~FrackMan() {} 
+	virtual void doSomething();	
+	void setDead();
+	virtual void specialMove(const int& digX, const int& digY);
+	virtual bool getAnnoyed(unsigned int amt); 
+	virtual void addGold() { m_gold++; };	
 	// player can't be passed anyways
 	virtual bool canActorPassThroughMe() const { return false; }
-	void addSonar() { m_charge++; };		// fillP
-	void addWater() { m_water = m_water + 5; };		//fillP
-	unsigned int getGold()const { return m_gold; }	//filled
-	unsigned int getSonar() const { return m_charge;  } 	//filled
-	unsigned int getWater() const { return m_water; } // filled
+	void addSonar() { m_charge++; };		
+	void addWater() { m_water = m_water + 5; };		
+	unsigned int getGold()const { return m_gold; }	
+	unsigned int getSonar() const { return m_charge;  } 	
+	unsigned int getWater() const { return m_water; }
 	// Can this actor dig through dirt?
 	virtual bool canDigThroughDirt() const { return true; }
 
@@ -308,39 +325,48 @@ private:
 class Protester : public HPholder
 {
 public:
-	Protester(StudentWorld *sw, int startX, int startY, int imageID, Direction dir, double size, unsigned int depth, int hp); /*filled*/
-	virtual ~Protester() {}; /*filled*/
-	//pick up gold nugget
+	Protester(StudentWorld *sw, int imageID, int startX = 56, int startY = 60, Direction dir = left, double size = 1.0, unsigned int depth = 0, int hp = 5);
+	virtual ~Protester() {}; 
 	virtual void addGold() = 0;
-	virtual bool getAnnoyed(unsigned int amt) = 0; // filled
-	//annoy this actor
-	virtual void specialMove(const int& digX, const int& digY) = 0;
-	virtual bool isProtester() const { return true; }
-	// Set state to having gien up protest
-	void setMustLeaveOilField() { m_state = 0;  } //filled
-	int getState() const { return m_state; } // filled
+	void specialMove(const int& digX, const int& digY);
+	bool isProtester() const { return true; }
+	// Set state to having given up protest
+	void setMustLeaveOilField(); 
+	int getState() const { return m_state; } 
 	// Set number of ticks until next move
-	int tick()const { return rest_ticks; } // filled
-	void tickTock() { rest_ticks--; } // filled
-	void setTicksToNextMove()
-	{rest_ticks = tickPeriod; non_rest_ticks++; }// filled
+	int tick()const { return rest_ticks; } 
+	void tickTock() { rest_ticks--; }
+	void setTicksToNextMove() {rest_ticks = tickPeriod; non_rest_ticks++; }
 	bool hasRecentlyShouted()
 	{
-		if (hasShouted && non_rest_ticks % 15 == 0)
+		if (hasShouted && (non_rest_ticks != last_shout_tick) && (non_rest_ticks - last_shout_tick) % 15 == 0)
 		{
 			hasShouted = false;
 			return true;
 		}
+		else if (hasShouted)
+		{
+			return true;
+		}
 		else return false;
 	}
-	void setShouted() { hasShouted = true; }
+	void setDead();
+	void setShouted() { hasShouted = true; last_shout_tick = non_rest_ticks; }
+	bool canActorPassThroughMe() const { return !getState(); }
+	GraphObject::Direction getDirPerp();
+	void doSomething();
+	bool getAnnoyed(unsigned int amt);
+	void leaveOilField();
 private:
 	int rest_ticks;
 	int tickPeriod;
 	int non_rest_ticks;
-	int m_state; // 0 leaving state
-				 // 1 normal state;
+	int m_state; // 0 leaving state; 1 normal state;
 	bool hasShouted;
+	int last_shout_tick = 0;
+	bool shouldMovePerp;
+	int numSquaresToMoveInCurrentDirection;
+	
 };
 
 ///////   REGULAR_PROTESTER OF PROTESTER   //////
@@ -348,22 +374,15 @@ private:
 class RegularP : public Protester
 {
 public:
-	RegularP(StudentWorld *sw, int startX, int startY, int imageID = IID_PROTESTER, Direction dir = left, double size = 1, unsigned int depth = 0, int hp = 5)
-		:Protester(sw, startX, startY, imageID, dir, size, depth, hp)
-	{
-		numSquaresToMoveInCurrentDirection = randInt(8, 60);
-	} /*filled*/
-	virtual ~RegularP() {}; /*filled*/
-	virtual void doSomething();	//fill
-	virtual bool getAnnoyed(unsigned int amt); //fill
-	//pick up gold nugget
-	virtual void addGold() = 0;
-	//annoy this actor
-	virtual void specialMove(const int& digX, const int& digY);
+	RegularP(StudentWorld *sw, int startX, int startY, int imageID = IID_PROTESTER)
+		:Protester(sw, imageID, startX, startY)
+	{}
+	RegularP(StudentWorld *sw, int imageID = IID_PROTESTER)
+		:Protester(sw, imageID)
+	{} 
+	virtual ~RegularP() {}
+	void addGold() { setMustLeaveOilField();  return; }
 private:
-	int numSquaresToMoveInCurrentDirection;
-	
-
 };
 
 ///////   HARDCORE_PROTESTER OF PROTESTER   //////
@@ -371,16 +390,17 @@ private:
 class HardcoreP : public Protester
 {
 public:
-	HardcoreP(StudentWorld *sw, int startX, int startY, int imageID, Direction dir, double size, unsigned int depth, int hp)
-		:Protester(sw, startX, startY, imageID, dir, size, depth, hp)
-	{} /*filled*/
-	virtual ~HardcoreP() {}; /*filled*/
-	virtual void doSomething();	//fill
-	virtual bool getAnnoyed(unsigned int amt); //fill
+	HardcoreP(StudentWorld *sw, int startX, int startY, int imageID = IID_HARD_CORE_PROTESTER)
+		:Protester(sw, imageID, startX, startY)
+	{} 
+	virtual ~HardcoreP() {};
+	//virtual void doSomething();
+	//virtual bool getAnnoyed(unsigned int amt);
 	//pick up gold nugget
-	virtual void addGold() = 0;
+	void addGold();
 	//annoy this actor
-	virtual void specialMove(const int& digX, const int& digY);
+	//virtual void specialMove(const int& digX, const int& digY);
+	// did not implement hardcoreP because it is not much different from regularP
 };
 
 #endif // ACTOR_H_

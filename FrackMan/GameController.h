@@ -1,6 +1,10 @@
 #ifndef GAMECONTROLLER_H_
 #define GAMECONTROLLER_H_
 
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+
 #include "SpriteManager.h"
 #include <string>
 #include <map>

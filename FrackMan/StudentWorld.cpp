@@ -1,40 +1,92 @@
 #include "StudentWorld.h"
 #include <string>
-using namespace std;
+
 
 StudentWorld::StudentWorld(std::string assetDir)
 	: GameWorld(assetDir), m_player(nullptr), L(0), G(0), B(0)
 {
-	incLives();					//warning
-								// occupy room to breath
+	incLives();					
+	// occupy room to breath
 	for (int r = 0; r != 64; r++)
-		for (int c = 0; c != 60; c++)
+		for (int c = 0; c != 64; c++)
 			m_dirts[r][c] = nullptr;
-} /*filled*/
+}
+
+// Deconstructor, deletes all dirt and actors
+StudentWorld::~StudentWorld()
+{
+	// delete all dirt
+	for (int r = 0; r != 64; r++)
+		for (int c = 0; c != 64; c++)
+		{
+			if (m_dirts[r][c] != nullptr)
+				delete m_dirts[r][c];
+		}
+
+	// delete all actors that may have not been deleted, e.g. when game ends prematurely
+	if (actors.size() != 0 )
+	{
+		int i = 0;
+		while (i != actors.size())
+		{
+			// deleteActor shifts all elements to front, so only delete 0th element
+			deleteActor(actors[i]);
+		}
+	}
+	cout << "Deleted the Student World Successfully. Thank you for playing!\n";
+}
+
 GameWorld* createStudentWorld(string assetDir)
 {
 	return new StudentWorld(assetDir);
 }
 
+// Print the dirt world for debug purposes
+void StudentWorld::printDirt()
+{
+	for (int y = 0; y < 64; y++)
+	{
+		for (int x = 0; x < 64; x++)
+		{
+
+			if (m_dirts[y][x] == nullptr)
+			{
+				cout << '.';
+			}
+			else if (m_dirts[y][x]->isDirt())
+			{
+				cout << 'o';
+			}
+			else
+			{
+				cout << '?';
+			}
+		}
+		cout << '\n';
+	}
+}
+
 // Initializes the world: player dirt, barrel, gold, boulder etc
 int StudentWorld::init()
 {
-	// occupy FrackMan
-	m_player = new FrackMan(this);
-	actors.push_back(m_player);
-
 	// occupy dirts
+	
 	for (int r = 0; r != 60; r++)
-		for (int c = 0; c != 60; c++)
+		for (int c = 0; c != 64; c++)
 			m_dirts[r][c] = new Dirt(this, c, r);
-
+	
 	// occupy mineshaft
-	for (int r = 4; r != 64; r++)
+	for (int r = 0; r != 64; r++)
 		for (int c = 30; c != 34; c++)
 		{
 			delete m_dirts[r][c];
 			m_dirts[r][c] = nullptr;
 		}
+
+	// occupy FrackMan
+	m_player = new FrackMan(this);
+	actors.push_back(m_player);
+
 
 	// Boulder, Gold, and Barrel numbers
 	B = min(getLevel() / 2 + 2, (unsigned int) 6);
@@ -46,8 +98,17 @@ int StudentWorld::init()
 	populateCollectables(G, 'G');
 	populateCollectables(L, 'L');
 
+	// Add a regular protester
+	addRegularP();
+
+	// Create maze for protester to use for exit
+	for (int i = 0; i < 64; i++)
+		for (int j = 0; j < 64; j++)
+			m_maze[i][j] = 999;
+
 	return GWSTATUS_CONTINUE_GAME;
 }
+
 // Populate barrel, bold, boulder with given numbers
 void StudentWorld::populateCollectables(int num, char which)
 {
@@ -58,11 +119,11 @@ void StudentWorld::populateCollectables(int num, char which)
 		// if boulder or gold
 		if (which == 'L' || which == 'G')
 		{
-			x = randInt(0, 60); y = randInt(0, 56);
+			x = randInt(0, 56); y = randInt(0, 56);
 		}
 		else // if boulder
 		{
-			x = randInt(0, 60); y = randInt(20, 56);
+			x = randInt(0, 56); y = randInt(20, 56);
 		}
 		// check if it is within radius 6
 		for (std::vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
@@ -87,85 +148,119 @@ void StudentWorld::populateCollectables(int num, char which)
 		}
 	}
 }
+
 // One tick. Makes actors move. Called 10-20 times every second 
 int StudentWorld::move()
 {
 	// Set game status text
 	setGameStatText("Scr: " + to_string(getScore()) + " LVL: " + to_string(getLevel()) + " Lives: " + to_string(getLives()) + " Hlth: " + 
-		to_string(m_player->healthPoint()/10 * 100) + "% Wtr: " + to_string(m_player->getWater()) + " Gld: " + to_string(m_player->getGold()) +
+			to_string(m_player->getHP() * 10) + "% Wtr: " + to_string(m_player->getWater()) + " Gld: " + to_string(m_player->getGold()) +
 		" Sonar: " + to_string(m_player->getSonar()) + " Oil Left: " + to_string(countOil()) + "      ");
 	
 	// If player dies:
 	if (!m_player->isAlive())
 	{
-		deleteActor(m_player);
+		playSound(SOUND_PLAYER_GIVE_UP);
 		decLives();
 		return GWSTATUS_PLAYER_DIED;
 	}
 	// If the player found all barrels, finish level
 	if (countOil() == 0)
-		 return GWSTATUS_FINISHED_LEVEL;
-	
+	{
+		playSound(SOUND_FINISHED_LEVEL);
+		return GWSTATUS_FINISHED_LEVEL;
+	}
+		 
 	// Player does something
 	m_player->doSomething();
-	isSafe(m_player);
 
 	// Rest of the Actors does something
-	std::vector<Actor*>::iterator i = actors.begin() + 1;
-	while (i != actors.end())
+	int i = 1;
+	
+	while (i != actors.size())
 	{
-		if (!(*i)->isAlive())
+		if (!actors[i]->isAlive())
 		{
-			deleteActor(*i);
-			break;
+			deleteActor(actors[i]);
+			continue;
 		}
 		else
-		{
-			(*i)->doSomething();
-			isSafe((*i));
-		}
+			actors[i]->doSomething();
 		i++;
 	}
 	return GWSTATUS_CONTINUE_GAME;
 }
 
-// When player loses a life, or completes the current level
-// free all actors
+//  Free all actors when player loses a life, or completes the current level
 void StudentWorld::cleanUp()
 {
 	// delete dirt
 	for (int r = 0; r != 64; r++)
-		for (int c = 0; c != 60; c++)
+		for (int c = 0; c != 64; c++)
 		{
 			if (m_dirts[r][c] != nullptr)
 			{
 				delete m_dirts[r][c];
 				m_dirts[r][c] = nullptr;
 			}
-		}/*filled*/
-
-	std::vector<Actor*>::iterator i = actors.begin();
-	while (i != actors.end())
+		}
+	while (actors.size() != 0)
 	{
-		deleteActor(*i); 
+		Actor* tmp = actors.back();
+		actors.pop_back();
+		delete tmp;
+		tmp = nullptr;
 	}
 }
 
-// Check dirt fix
-// TODO something with boundary and stuff
-// How is it actually used?
-bool StudentWorld::isDirtAt(const int& x, const int& y) const
+// Check if there is any dirt at a 4x4 square anchored at (x,y)
+bool StudentWorld::anyDirtWallAt(const GraphObject::Direction& dir, const int& x, const int& y) const
 {
+	// The square anchored at (x,y) is unique because 
+	// the anchor is defined by the lower left corner of the square.
 	int xBoundary = x + 4, yBoundary = y + 4;
-	for (int c = x; c != xBoundary; c++)
-		for (int r = y; r != yBoundary; r++)
-		{
-			if (m_dirts[r][c]->isPlacable(c, r) && m_dirts != nullptr)
-				return true;
-		}
-	return false;
-	
+	int count = 0;
+	switch (dir)
+	{
+		case left: case right:  
+			for (int r = y; r != yBoundary; r++)
+			{
+				if (m_dirts[r][x]->isPlacable(x, r) && m_dirts[r][x] != nullptr)
+					count++;
+			}
+			break;
+		case up: case down: 
+			for (int c = x; c != xBoundary; c++)
+			{
+				if (m_dirts[y][c]->isPlacable(c, y) && m_dirts[y][c] != nullptr)
+					count++;
+			}
+			break;
+		default: break;
+	}
+	return count == 4;
 }
+
+// Check if there is full dirt at a 4x4 square anchored at (x,y)
+bool StudentWorld::anyDirtAt(const int& x, const int& y) const
+{
+	// The square anchored at (x,y) is unique because 
+	// the anchor is defined by the lower left corner of the square. 
+	int xBoundary = x + 4, yBoundary = y + 4;
+	
+	for (int r = y; r != yBoundary; r++)
+	{
+		for (int c = x; c != xBoundary; c++)
+		{
+			if (m_dirts[r][c] != nullptr)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 // Deletes a square dirt at (x,y) with specified size 
 void StudentWorld::delDirtat(const int& x, const int& y, const int& size)
 {
@@ -190,7 +285,6 @@ void StudentWorld::getDug(const int& x, const int& y)
 	{
 	case left:
 		for (int k = y; k != yBoundary; k++)
-
 		{
 			if (m_dirts[k][x] != nullptr)
 			{
@@ -246,6 +340,12 @@ void StudentWorld::addSquirt(int x, int y, GraphObject::Direction dir)
 		default: break;
 	}
 	actors.push_back(m_squirt);
+	// Should annoy a Frackman when it is summoned
+	if (annoyAllNearbyProtesters(m_squirt->getX(), m_squirt->getY(), 2) > 0)
+	{
+		m_squirt->setDead();
+		return;
+	}
 
 	if (!canActorMoveTo(m_squirt, m_squirt->getX(), m_squirt->getY()))
 		m_squirt->setDead();
@@ -263,67 +363,89 @@ bool StudentWorld::isProtesterAt(const int& x, const int& y)
 }
 
 // Delete the Actor with a given ptr
-void StudentWorld::deleteActor(Actor* ptr)
+const void StudentWorld::deleteActor(Actor* ptr)
 {
-	std::vector<Actor*>::iterator i = find(actors.begin(), actors.end(), ptr);
-	actors.erase(i);
-	delete ptr;
-	ptr = nullptr;
+	Actor* tmp = ptr;
+	std::vector<Actor*>::iterator k = find(actors.begin(), actors.end(), ptr);
+	if (k == prev(actors.end()))
+		actors.pop_back();
+	else 
+		ptr = *(actors.erase(k));
+	delete tmp;
+	tmp = nullptr;
 }
 
 // Check if the Actor can move to (x,y)
-bool StudentWorld::canActorMoveTo(Actor* ptr, const int& x, const int& y)
+bool StudentWorld::canActorMoveTo(const Actor* ptr, const int& x, const int& y)
 {
 	bool answer = true;
-	if (x < 0 || x > 56 || y < 0 || y > 60)
+	if (x < 0 || x > 60 || y < 0 || y > 60)
 		return false;
-	else if (isDirtAt(x, y) && ptr != m_player)
+	else if (ptr != m_player && anyDirtAt(x, y))
 		return false;
-	else if (isDirtAt(x, y) && ptr == m_player)
+	else if (ptr == m_player && anyDirtWallAt(ptr->getDirection(), x, y))
 		return true;
 	else
 	{
 		for (vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
-			if ((*i) != ptr && doesFrameOverlap(ptr,(*i)) && (*i)->canActorPassThroughMe() == false )
+			if ((*i) != ptr && doFramesOverlap(x, y, (*i)->getX(), (*i)->getY()) && (*i)->canActorPassThroughMe() == false)
+			{
 				answer = false;
+			}
 	}
 	return answer;
 }
 
-// Deconstructor, deletes all dirt and actors
-StudentWorld::~StudentWorld()
+// Check if Protester can move to (x,y) used for BFS
+bool StudentWorld::canMoveTo(const int& x, const int& y)
 {
-	// delete all dirt
-	for (int r = 0; r != 60; r++)
-		for (int c = 0; c != 60; c++)
-		{
-			delete m_dirts[r][c];
-		}/*filled*/
-
-	// delete all actors
-	for (vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
-		deleteActor(*i);
+	bool answer = true;
+	if (x < 0 || x > 60 || y < 0 || y > 60)
+		return false;
+	else if (anyDirtAt(x,y))
+		return false;
+	else
+	{
+		for (vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
+			if ((*i)->isObstacle() && doFramesOverlap(x, y, (*i)->getX(), (*i)->getY()))
+			{
+				answer = false;
+			}
+	}
+	return answer;
 }
 
 // Calculate euclidean distance between (x1,y1) & (x2,y2)
 float StudentWorld::disBetween(int x1, int y1, int x2, int y2)
 {
-	return ((x1 - x2) ^ 2 + (y1 - y2) ^ 2) ^ (1 / 2);
+	return pow((pow((float)(x1 - x2), 2) + pow((float)(y1 - y2), 2)),(float)1/2);
 }
 
 // Check if 4x4 dimensions of actors overlap
-bool StudentWorld::doesFrameOverlap(Actor* a1, Actor* a2) const
+bool StudentWorld::doFramesOverlap(const Actor* a1, const Actor* a2) const
 {
-	int a1Boundary_x = a1->getX() + 4, a1Boundary_y = a1->getY() + 4;
-	int a2Boundary_x = a2->getX() + 4, a2Boundary_y = a2->getY() + 4;
-	if (a1->getX() >= a2->getX() && a1->getX() < a2Boundary_x && 
-		a1->getY() >= a2->getY() && a1->getY() < a2Boundary_y)
-		return true;
-	else if 
-		(a2->getX() >= a1->getX() && a2->getX() < a1Boundary_x && 
-		a2->getY() >= a1->getY() && a2->getY() < a1Boundary_y)
-		return true;
-	else return false;
+	int a1_x = a1->getX(), a1_y = a1->getY();
+	int a2_x = a2->getX(), a2_y = a2->getY();
+	
+	// call the overloaded function that takes in coord of actors
+	return doFramesOverlap(a1_x, a1_y, a2_x, a2_y);
+}
+
+// Check if 4x4 dimensions of actors anchored at (x1,y1) (x2,y2) overlap, overload func
+bool StudentWorld::doFramesOverlap(const int a1_x, const int a1_y, const int a2_x, const int a2_y) const
+{
+	int a1_bx = a1_x + 3, a1_by = a1_y + 3;
+	int a2_bx = a2_x + 3, a2_by = a2_y + 3;
+	// With current logic, A1 overlapping w A2 is not same as A2 overlapping with A1, so
+	// Does actor 1 overlap with actor 2
+	bool left_to_right = (((a1_bx <= a2_bx) && (a1_bx  >= a2_x)) || ((a1_x >= a2_x) && (a1_x <= a2_bx ))) &&
+		(((a1_y >= a2_y) && (a1_y <= a2_by )) || (((a1_by  >= a2_y)) && (a1_by <= a2_by)));
+	if (left_to_right) return true;
+	// Does actor 2 overlap with actor 1
+	bool right_to_left = (((a2_bx <= a1_bx) && (a2_bx  >= a1_x)) || ((a2_x >= a1_x) && (a2_x <= a1_bx ))) &&
+		(((a2_y >= a1_y) && (a2_y <= a1_by )) || (((a2_by-1 >= a1_y)) && (a2_by <= a1_by)));
+	if (right_to_left) return true;
+	return false;
 }
 
 // Use sonar, revealling all hidden items within 12 radius
@@ -344,43 +466,45 @@ void StudentWorld::addGold(const int& x, const int& y, int timer)
 	actors.push_back(g);
 }
 
+// Add new regular protester
+void StudentWorld::addRegularP()
+{
+	RegularP* rp = new RegularP(this);
+	actors.push_back(rp);
+}
+
 // Return true if there is any dirt beneath the boulder, false otherwise
-bool StudentWorld::checkBoulderGround(Actor* a) const
+bool StudentWorld::checkBoulderGround(const Actor* a) const
 {
 	int xBoundary = a->getX() + 4;
-
 	for (int k = a->getX(); k != xBoundary; k++)
 	{
-		if (m_dirts[a->getY()][k] != nullptr)
+		if (m_dirts[a->getY() - 1][k] != nullptr)
 			return true;
 	}
 	return false;
-
 }
 
 // Return true if the given actor is within specified radius from Frackman
-bool StudentWorld::isNearbyFrackMan(Actor* a, const int& radius)
+bool StudentWorld::isNearbyFrackMan(const Actor* a, const int& radius)
 {
-	if (disBetween(a->getX(), a->getY(), m_player->getX(), m_player->getY()) <= radius)
-		return true;
-	else
-		return false;
-}
-// True if Actor is safe from any boulder, false otherwise, which makes the actor dead.
-// TODO: Optimize by creating separate vector from actors for boulder
-bool StudentWorld::isSafe(Actor* a)
-{
-	// Only HP holders can be injured by boulder
-	if (a->hasHP())
+	float distance = disBetween(a->getX(), a->getY(), m_player->getX(), m_player->getY());
+
+	if (disBetween(a->getX(), a->getY(), m_player->getX(), m_player->getY()) <= (float)radius)
 	{
-		for (std::vector<Actor*>::iterator i = actors.begin(); i != actors.end(); i++)
-			if ((*i)->isBoulder() && doesFrameOverlap(a, *i))
-			{
-				a->setDead();
-				return false;
-			}
+		
+		//if (a->hasHP())
+			//printf("Distance is close with A:(%d,%d) and F:(%d,%d)\n", a->getX(), a->getY(), m_player->getX(), m_player->getY());
+		return true;
 	}
-	return true;
+	else
+	{
+		//debug
+		//if (a->hasHP())
+			//printf("Distance is not close with A:(%d,%d) and F:(%d,%d)\n", a->getX(), a->getY(), m_player->getX(), m_player->getY());
+		return false;
+	}
+		
 }
 
 // Return number of oils/barrels
@@ -389,77 +513,234 @@ int StudentWorld::countOil()
 	return L;
 }
 
+// Decrease number of oils
+void StudentWorld::decOil()
+{
+	L--;
+}
+
 // True if Actor sees Frackman
 bool StudentWorld::facingTowardFrackMan(Actor* a)
 {
 	return a->getDirection() == lineOfSightToFrackMan(a);
+	// Debug
 }
 
-// 
+// If any frame of frackman is in horizontal or vertical line of sight without any obstacles, return that direction. Otherwise none object.
 GraphObject::Direction StudentWorld::lineOfSightToFrackMan(Actor* a)
 {
 	const int ax = a->getX(), ay = a->getY();
 	const int fx = m_player->getX(), fy = m_player->getY();
 
-	const int max_x = max(ax, fx);
-	const int min_x = min(ax, fx);
-	const int max_y = max(ay, fy);
-	const int min_y = min(ay, fy);
+	const int max_x = fx + 4;
+	const int min_x = fx - 4;
+	const int max_y = fy + 4;
+	const int min_y = fy - 4;
 
 	// Return no direction if line of sight is blocked
-	if (ax == fx)
+	if (min_x < ax && ax < max_x)
 	{
-		for (int y = min_y; y != max_y; y++)
-			if (isBoulderAt(ax, y) || isDirtAt(ax, y))
+		// Whether above or bottom, heck if any boulder or dirt is along LOS
+		for (int y = ay; y > fy; y--)
+			if (anyBoulderAt(ax, y) || anyDirtAt(ax, y))
 				return GraphObject::none;
+		for (int y = ay; y < fy; y++)
+			if (anyBoulderAt(ax, y) || anyDirtAt(ax, y))
+				return GraphObject::none;
+		// If not blocked, return direction from actor to frackman 
+		if (ay < fy)
+			return GraphObject::up;
+		else
+			return GraphObject::down;
 	}
-	else if (ay == fy)
+	else if (min_y < ay && ay < max_y)
 	{
-		for (int x = min_x; x != max_x; x++)
-			if (isBoulderAt(x, ay) || isDirtAt(x, ay))
+		// Whether left or right, check any boulder or dirt along LOS
+		for (int x = ax; x > fx; x--)
+			if (anyBoulderAt(x, ay) || anyDirtAt(x, ay))
 				return GraphObject::none;
+		for (int x = ax; x < fx; x++)
+			if (anyBoulderAt(x, ay) || anyDirtAt(x, ay))
+				return GraphObject::none;
+		// If not blocked, return direction from actor to frackman 
+		if (ax > fx)
+			return GraphObject::left;
+		else
+			return GraphObject::right;
 	}
-
-	// If not blocked, return direction to frackman from actor
-	if (ay == min_y)
-		return GraphObject::up;
-	else if (ax== min_x)
-		return GraphObject::right;
-	else if (ay == max_y)
-		return GraphObject::down;
-	else if (ax == max_x)
-		return GraphObject::left;
+	else
+		return GraphObject::none;
 }
-bool StudentWorld::isBoulderAt(const int& x, const int& y)
+
+// Check if there is any boulder frame overlapped at 4x4 square anchored at (x,y)
+bool StudentWorld::anyBoulderAt(const int& x, const int& y)
 {
-	int k = 0;
-	std::vector<Actor*>::iterator i = actors.begin();
+	int k = 1;
 	while (k != actors.size())
 	{
-		if ((*i)->isBoulder() && (*i)->getX() == x && (*i)->getY() == y)
+		if (actors[k]->isBoulder() && doFramesOverlap(actors[k]->getX(),  actors[k]->getY(), x, y))
 			return true;
 		k++;
-		i++;
 	}
 	return false;
 }
-int StudentWorld::annoyAllNearbyProtesters(Actor* annoyer, int points)
+
+// Annoy protesters by squirting, return number of protesters annoyed 
+int StudentWorld::annoyAllNearbyProtesters(int x, int y, int points)
 {
 	int annoyed = 0;
 	int k = 0;
 	while (k != actors.size())
 	{
-		std::vector<Actor*>::iterator i = actors.begin();
-		if ((*i)->isProtester() && doesFrameOverlap(annoyer, *i))
+		if (actors[k]->isProtester() && doFramesOverlap(x,y, actors[k]->getX(), actors[k]->getY()))
 		{
-			(*i)->getAnnoyed(points);
+			actors[k]->getAnnoyed(points);
 			annoyed++;
 		}
 		k++;
-		i++;
 	}
 	return annoyed;
 }
 
+// Return nearby protesters within radius of that actor
+Actor* StudentWorld::anyNearbyP(const Actor* a, const int radius)
+{
+	int k = 0;
+	while (k != actors.size())
+	{
+		if (actors[k]->isProtester())
+		{
+			float distance = disBetween(a->getX(), a->getY(), actors[k]->getX(), actors[k]->getY());
+			if (disBetween(a->getX(), a->getY(), actors[k]->getX(), actors[k]->getY()) <= (float)radius)
+			{
+				return actors[k];
+			}
+		}
+		k++;
+	}	
+	return nullptr;
+}
 
-// Students:  Add code to this file (if you wish), StudentWorld.h, Actor.h and Actor.cpp
+// Get direction for Protester at given location
+GraphObject::Direction StudentWorld::getDir(Protester* actor, const int x, const int y) //todo
+{
+	// Figure out optimal order of directions
+	int steps[4] = { m_maze[x][y + 1], m_maze[x][y - 1], m_maze[x - 1][y], m_maze[x + 1][y] };
+	int min_step = 999;
+	int stepOrder[4] = { 0 };
+	// N^2 sort, there is a better way, but this will do for now (todo)
+	for (int i = 0; i < 4; i++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			if (steps[j] < min_step)
+			{
+				stepOrder[i] = j;
+				min_step = steps[j];
+			}
+		}
+		// Mark this step/direction so that it is not accounted for in the next iteration
+		steps[stepOrder[i]] = 999;
+
+		// Check if the Protester can move in that direction
+		int dirX, dirY = 0;
+		GraphObject::Direction dir;
+		switch (stepOrder[i])
+		{
+			// up
+			case 0: dirX = x; dirY = y + 1; dir = GraphObject::Direction(up);
+				break;
+			// down
+			case 1: dirX = x; dirY = y - 1; dir = GraphObject::Direction(down);
+				break;
+			// left
+			case 2: dirX = x - 1; dirY = y; dir = GraphObject::Direction(left);
+				break;
+			// right
+			case 3: dirX = x + 1; dirY = y; dir = GraphObject::Direction(right);
+				break;
+		}
+
+		if (canActorMoveTo(actor, dirX, dirY))
+			return dir;
+
+		min_step = 999;
+	}
+	try
+	{
+		// Should never come here though
+		throw ERROR;
+	}
+	catch (int e)
+	{
+		cout << "No possible direction is found for the protester" << e << '\n';
+	}
+}
+
+// Update maze for protester's optimal paths using queue based DFS algorithm
+void StudentWorld::updateMaze() //todo
+{
+	// create an empty queue
+	queue<Node> nodeQueue;    
+
+	// reinitialize the map
+
+	for (int x = 0; x < 64; x++) 
+	{
+		for (int y = 0; y < 64; y++)
+		{
+			m_maze[x][y] = 999;
+		}
+	}
+	
+	nodeQueue.push(Node(60, 60));
+	
+	m_maze[60][60] = 0;
+
+	while (!nodeQueue.empty())
+	{
+		Node current = nodeQueue.front();    // get the value of the top item before popping
+		nodeQueue.pop();
+
+		int x = current.getX();
+		int y = current.getY();
+
+		if (x <= 60 && y + 1 <= 60 && x >= 0 && y + 1 >= 0)   // can move NORTH
+		{
+			if (canMoveTo(x, y + 1) && (m_maze[x][y + 1] == 999 || m_maze[x][y] + 1 < m_maze[x][y + 1]))
+			{
+				m_maze[x][y + 1] = m_maze[x][y] + 1;
+				nodeQueue.push(Node(x, y + 1));
+			}
+		}
+
+		if (x <= 60 && y - 1 <= 60 && x >= 0 && y - 1 >= 0)   // can move SOUTH
+		{
+			if (canMoveTo(x, y - 1) && (m_maze[x][y - 1] == 999 || m_maze[x][y] + 1 < m_maze[x][y - 1]))
+			{
+				m_maze[x][y - 1] = m_maze[x][y] + 1;
+				nodeQueue.push(Node(x, y - 1));
+			}
+		}
+
+		if (x + 1 <= 60 && y <= 60 && x + 1 >= 0 && y >= 0)   // can move RIGHT
+		{
+			if (canMoveTo(x + 1, y) && (m_maze[x + 1][y] == 999 || m_maze[x][y] + 1 < m_maze[x + 1][y]))
+			{
+				m_maze[x + 1][y] = m_maze[x][y] + 1;
+				nodeQueue.push(Node(x + 1, y));
+			}
+		}
+		
+
+		if (x - 1 <= 60 && y <= 60 && x - 1 >= 0 && y >= 0)   // can move LEFT
+		{
+			if (canMoveTo(x - 1, y) && (m_maze[x - 1][y] == 999 || m_maze[x][y] + 1 < m_maze[x - 1][y]))
+			{
+				m_maze[x - 1][y] = m_maze[x][y] + 1;
+				nodeQueue.push(Node(x - 1, y));
+			}
+		}
+	}
+
+}
